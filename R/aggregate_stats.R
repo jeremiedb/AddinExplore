@@ -1,7 +1,8 @@
 #' RStudio Addin for Visualising Summarised Data Frame
 #'
+#'@import dplyr miniUI shiny shinythemes plotly
 #'
-
+#'@export
 aggregate_stats <- function() {
 
   objects_list<- ls(envir = .GlobalEnv)
