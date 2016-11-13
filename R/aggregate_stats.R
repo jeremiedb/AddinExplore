@@ -88,12 +88,12 @@ aggregate_stats <- function() {
                 title = group_var
               ),
               yaxis=list(
-                title = paste0(target_var, "/", expo_var)
+                title = expo_var
               ),
               yaxis2=list(
                 overlaying = "y",
                 side = "right",
-                title = "ratio"
+                title = paste0(target_var, "/", expo_var)
               ),
               margin=list(b=120)
             ) %>%
