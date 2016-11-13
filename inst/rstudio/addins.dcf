@@ -1,0 +1,4 @@
+Name: DataExplore
+Description: Show clock
+Binding: aggregate_stats
+Interactive: false
