@@ -18,11 +18,3 @@ Imports:
   plotly,
   dplyr,
   shinythemes
-Depends:  
-  shiny,
-  miniUI,
-  rstudioapi,
-  ggplot2,
-  plotly,
-  dplyr,
-  shinythemes

@@ -1,16 +1,11 @@
-
-# library("shiny")
-# library("miniUI")
-# library("rstudioapi")
-# require(plotly)
-# require(dplyr)
-#require(shinythemes)
-#require(AddinExplore)
+#' RStudio Addin for Visualising Summarised Data Frame
+#'
+#'
 
 aggregate_stats <- function() {
 
   objects_list<- ls(envir = .GlobalEnv)
-  data_list<- objects_list[sapply(objects_list, function(x) class(get(x, envir = .GlobalEnv))) == 'data.frame']
+  data_list<- objects_list[sapply(objects_list, function(x) "data.frame" %in% class(get(x, envir = .GlobalEnv)))]
 
   # Our ui will be a simple gadget page, which
   # simply displays the time in a 'UI' output.
