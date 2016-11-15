@@ -1,6 +1,6 @@
 #' RStudio Addin for Visualising Summarised Data Frame
 #'
-#'@import dplyr miniUI shiny shinythemes plotly
+#'@import rstudioapi shiny miniUI dplyr plotly
 #'
 #'@export
 aggregate_stats <- function() {
@@ -11,7 +11,6 @@ aggregate_stats <- function() {
   # Our ui will be a simple gadget page, which
   # simply displays the time in a 'UI' output.
   ui <- miniUI::miniPage(
-    #theme = shinythemes::shinytheme("cosmo"),
     title = "allo",
     miniUI::gadgetTitleBar("Exploration"),
 
