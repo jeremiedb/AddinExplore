@@ -17,6 +17,7 @@ aggregate_stats <- function() {
     miniUI::miniButtonBlock(
       shiny::selectInput("list_data", label = "Input Data", choices = data_list, multiple = F),
       shiny::selectInput("target_var", label = "Target", choices = "", multiple = F, selectize = T),
+      shiny::selectInput("compare_var", label = "Compare", choices = "", multiple = F, selectize = T),
       shiny::selectInput("expo_var", label = "Exposure", choices = "", multiple = F),
       shiny::selectInput("group_var", label = "Group", choices = "", multiple = F),
       shiny::numericInput("num_bins", label = "Bins #", value = 10, min = 1, max = 128, step = 1),
@@ -47,6 +48,7 @@ aggregate_stats <- function() {
       num_vars<- names(var_types)[var_types %in% c("numeric", "integer")]
 
       shiny::updateSelectizeInput(session, inputId = "target_var", choices = num_vars)
+      shiny::updateSelectizeInput(session, inputId = "compare_var", choices = num_vars)
       shiny::updateSelectInput(session, inputId = "expo_var", choices = num_vars)
       shiny::updateSelectInput(session, inputId = "group_var", choices = var_list)
     })
@@ -56,6 +58,7 @@ aggregate_stats <- function() {
 
       #data_select<- input$list_data
       target_var<- input$target_var
+      compare_var<- input$compare_var
       expo_var<- input$expo_var
       group_var<- input$group_var
       var_types<- data_input()$var_types
@@ -67,6 +70,11 @@ aggregate_stats <- function() {
       ### Patch for no selected target
       if (is.na(target_var) | target_var==""){
         target_var<- num_vars[1]
+      }
+
+      ### Patch for no selected compare
+      if (is.na(compare_var) | compare_var==""){
+        compare_var<- num_vars[1]
       }
 
       ### Patch to assume vector of 1s if no weight is specified
@@ -85,10 +93,9 @@ aggregate_stats <- function() {
       output$plot<- plotly::renderPlotly({
         if (!is.null(group_var) & !group_var==""){
 
-
-
           data_raw<- data_raw %>%
             mutate_(target=formula(paste0("~",target_var)),
+                    compare=formula(paste0("~",compare_var)),
                     expo=formula(paste0("~",expo_var)),
                     group=formula(paste0("~",group_var)))
 
@@ -99,11 +106,13 @@ aggregate_stats <- function() {
 
           data_sum<- data_raw %>%
             dplyr::group_by(group) %>%
-            dplyr::summarise_at(.cols = dplyr::vars(target,expo), .funs = dplyr::funs(sum(as.numeric(.), na.rm=T))) %>%
-            dplyr::mutate(ratio=target/expo)
+            dplyr::summarise_at(.cols = dplyr::vars(target, compare, expo), .funs = dplyr::funs(sum(as.numeric(.), na.rm=T))) %>%
+            dplyr::mutate(ratio_target=target/expo,
+                          ratio_compare=compare/expo)
 
-          plotly::plot_ly(data_sum, x=~group , y=~expo, type="bar", color=I("black"), alpha = 0.5, name=expo_var) %>%
-            plotly::add_trace(data_sum, x=~group , y=~ratio, yaxis="y2", type="scatter", mode="lines+markers", color=I("navy"), name="target ratio", alpha=1) %>%
+          plotly::plot_ly(data_sum, x=~group , y=~expo, type="bar", color=I("lightblue"), alpha = 0.5, name="Exposure") %>%
+            plotly::add_trace(data_sum, x=~group , y=~ratio_compare, yaxis="y2", type="scatter", mode="lines+markers", color=I("darkgrey"), name="Compare", alpha=1) %>%
+            plotly::add_trace(data_sum, x=~group , y=~ratio_target, yaxis="y2", type="scatter", mode="lines+markers", color=I("navy"), name="Target", alpha=1) %>%
             plotly::layout(
               xaxis=list(
                 title = group_var
@@ -116,7 +125,7 @@ aggregate_stats <- function() {
                 side = "right",
                 title = paste0(target_var, "/", expo_var)
               ),
-              margin=list(b=120)
+              margin=list(b=120, l=50, r=100)
             ) %>%
             plotly::config(collaborate = F, editable=F, showLink=F, sendData=F, displaylogo=T)
 
