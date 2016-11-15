@@ -1,4 +1,4 @@
-Name: DataExplore
+Name: AddinExplore
 Description: Interactive visual data aggregation
 Binding: aggregate_stats
 Interactive: true

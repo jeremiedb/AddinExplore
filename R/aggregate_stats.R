@@ -11,15 +11,16 @@ aggregate_stats <- function() {
   # Our ui will be a simple gadget page, which
   # simply displays the time in a 'UI' output.
   ui <- miniUI::miniPage(
-    theme = shinythemes::shinytheme("cosmo"), title = "allo",
+    #theme = shinythemes::shinytheme("cosmo"),
+    title = "allo",
     miniUI::gadgetTitleBar("Exploration"),
 
     miniUI::miniButtonBlock(
       shiny::selectInput("list_data", label = "Input Data", choices = data_list, multiple = F),
-      shiny::selectInput("target_var", label = "Target", choices = "", multiple = F),
+      shiny::selectInput("target_var", label = "Target", choices = "", multiple = F, selectize = T),
       shiny::selectInput("expo_var", label = "Exposure", choices = "", multiple = F),
       shiny::selectInput("group_var", label = "Group", choices = "", multiple = F),
-      shiny::numericInput("num_bins", label = "Bins #", value = 10, min = 1, max = 100, step = 1),
+      shiny::numericInput("num_bins", label = "Bins #", value = 10, min = 1, max = 128, step = 1),
       border = "bottom"),
 
     shiny::fillRow(
@@ -64,8 +65,28 @@ aggregate_stats <- function() {
 
       data_raw<- data_input()$data
 
+      ### Patch for no selected target
+      if (is.na(target_var) | target_var==""){
+        target_var<- num_vars[1]
+      }
+
+      ### Patch to assume vector of 1s if no weight is specified
+      if (is.na(expo_var) | expo_var==""){
+        expo_var<- "AllOnes"
+        data_raw$AllOnes<-1
+      }
+
+      ### Patch for no selected group
+      if (is.na(group_var) | group_var==""){
+        group_var<- "TOTAL"
+        data_raw$TOTAL<- "TOTAL"
+      }
+
+
       output$plot<- plotly::renderPlotly({
         if (!is.null(group_var) & !group_var==""){
+
+
 
           data_raw<- data_raw %>%
             mutate_(target=formula(paste0("~",target_var)),
@@ -73,16 +94,16 @@ aggregate_stats <- function() {
                     group=formula(paste0("~",group_var)))
 
           # ### bin numeric variable
-          if (group_var %in% num_vars & !is.na(num_bins)){
+          if (group_var %in% num_vars & !is.na(num_bins) & !all(data_raw$group[1]==data_raw$group)){
             data_raw$group<- cut(data_raw$group, breaks = sort(unique(quantile(data_raw$group, probs = 0:num_bins/num_bins))), include.lowest = T)
           }
 
           data_sum<- data_raw %>%
             dplyr::group_by(group) %>%
-            dplyr::summarise_at(.cols = dplyr::vars(target,expo), .funs = dplyr::funs(sum(., na.rm=T))) %>%
+            dplyr::summarise_at(.cols = dplyr::vars(target,expo), .funs = dplyr::funs(sum(as.numeric(.), na.rm=T))) %>%
             dplyr::mutate(ratio=target/expo)
 
-          plotly::plot_ly(data_sum, x=~group , y=~expo, type="bar", color=I("gray"), alpha = 0.5, name=expo_var) %>%
+          plotly::plot_ly(data_sum, x=~group , y=~expo, type="bar", color=I("black"), alpha = 0.5, name=expo_var) %>%
             plotly::add_trace(data_sum, x=~group , y=~ratio, yaxis="y2", type="scatter", mode="lines+markers", color=I("navy"), name="target ratio", alpha=1) %>%
             plotly::layout(
               xaxis=list(
@@ -134,7 +155,7 @@ aggregate_stats <- function() {
     })
   }
 
-  viewer <- shiny::dialogViewer(dialogName = "Explorer", width=800, height=800)
+  viewer <- shiny::dialogViewer(dialogName = "Explorer", width=900, height=1200)
   #viewer <- shiny::browserViewer()
   #viewer <- shiny::paneViewer(minHeight = 300)
 
