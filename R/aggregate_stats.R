@@ -8,10 +8,7 @@ aggregate_stats <- function() {
   objects_list<- ls(envir = .GlobalEnv)
   data_list<- objects_list[sapply(objects_list, function(x) "data.frame" %in% class(get(x, envir = .GlobalEnv)))]
 
-  # Our ui will be a simple gadget page, which
-  # simply displays the time in a 'UI' output.
   ui <- miniUI::miniPage(
-    title = "allo",
     miniUI::gadgetTitleBar("Exploration"),
 
     miniUI::miniButtonBlock(
@@ -61,9 +58,10 @@ aggregate_stats <- function() {
       compare_var<- input$compare_var
       expo_var<- input$expo_var
       group_var<- input$group_var
+      num_bins<- input$num_bins
+
       var_types<- data_input()$var_types
       num_vars<- names(var_types)[var_types %in% c("numeric", "integer")]
-      num_bins<- input$num_bins
 
       data_raw<- data_input()$data
 
@@ -87,6 +85,14 @@ aggregate_stats <- function() {
       if (is.na(group_var) | group_var==""){
         group_var<- "TOTAL"
         data_raw$TOTAL<- "TOTAL"
+      }
+
+      ### Patch to reset variables when changing dataset
+      if (!all(c(target_var, compare_var, expo_var, group_var) %in% colnames(data_raw))){
+        target_var<- num_vars[1]
+        compare_var<- num_vars[1]
+        expo_var<- num_vars[1]
+        group_var<- num_vars[1]
       }
 
 
@@ -171,9 +177,3 @@ aggregate_stats <- function() {
 }
 
 # aggregate_stats()
-
-
-# allo<- data.frame(xx=runif(10), yy=exp(runif(10)))
-# bonjour<- data.frame(xx=runif(10), yy=log(runif(10)), zz=1:10)
-# another<- data.frame(lettre=sample(letters[1:5], 100, replace = T),xx=runif(100), yy=exp(runif(100)))
-
