@@ -1,6 +1,6 @@
 #' RStudio Addin for Visualising Summarised Data Frame
 #'
-#'@import rstudioapi shiny miniUI dplyr plotly RVisuals magrittr
+#'@import rstudioapi shiny miniUI dplyr plotly
 #'
 #'@export
 aggregate_stats <- function() {
@@ -75,19 +75,10 @@ aggregate_stats <- function() {
         compare_var<- target_var
       }
 
-      ### Patch to assume vector of 1s if weight is not specified
+      ### Patch to assume vector of 1s if no weight is specified
       if (is.na(expo_var) | expo_var==""){
         expo_var<- "AllOnes"
         data_raw$AllOnes<-1
-      }
-
-
-      ### Patch to reset variables when changing dataset
-      if (!all(c(target_var, compare_var, expo_var, group_var) %in% colnames(data_raw))){
-        target_var<- num_vars[1]
-        compare_var<- num_vars[1]
-        expo_var<- num_vars[1]
-        group_var<- NA
       }
 
       ### Patch for no selected group
@@ -96,10 +87,77 @@ aggregate_stats <- function() {
         data_raw$TOTAL<- "TOTAL"
       }
 
+      ### Patch to reset variables when changing dataset
+      if (!all(c(target_var, compare_var, expo_var, group_var) %in% colnames(data_raw))){
+        target_var<- num_vars[1]
+        compare_var<- num_vars[1]
+        expo_var<- num_vars[1]
+        group_var<- num_vars[1]
+      }
+
+
       output$plot<- plotly::renderPlotly({
         if (!is.null(group_var) & !group_var==""){
-          #RVisuals::one_way_plot(input_data = data_raw, group = group_var, target = target_var, weight = expo_var)
-          one_way_plot(input_data = data_raw, group = group_var, target = target_var, weight = expo_var)
+
+          data_raw<- data_raw %>%
+            mutate_(target=formula(paste0("~",target_var)),
+                    compare=formula(paste0("~",compare_var)),
+                    expo=formula(paste0("~",expo_var)),
+                    group=formula(paste0("~",group_var)))
+
+          # ### bin numeric variable
+          if (group_var %in% num_vars & !is.na(num_bins) & !all(data_raw$group[1]==data_raw$group)){
+            data_raw$group<- cut(data_raw$group, breaks = sort(unique(quantile(data_raw$group, probs = 0:num_bins/num_bins))), include.lowest = T)
+          }
+
+          data_sum<- data_raw %>%
+            dplyr::group_by(group) %>%
+            dplyr::summarise_at(.cols = dplyr::vars(target, compare, expo), .funs = dplyr::funs(sum(as.numeric(.), na.rm=T))) %>%
+            dplyr::mutate(ratio_target=target/expo,
+                          ratio_compare=compare/expo)
+
+          plotly::plot_ly(data_sum, x=~group , y=~expo, type="bar", color=I("lightblue"), alpha = 0.5, name="Exposure") %>%
+            plotly::add_trace(data_sum, x=~group , y=~ratio_compare, yaxis="y2", type="scatter", mode="lines+markers", color=I("darkgrey"), name="Compare", alpha=1) %>%
+            plotly::add_trace(data_sum, x=~group , y=~ratio_target, yaxis="y2", type="scatter", mode="lines+markers", color=I("navy"), name="Target", alpha=1) %>%
+            plotly::layout(
+              xaxis=list(
+                title = group_var
+              ),
+              yaxis=list(
+                title = expo_var
+              ),
+              yaxis2=list(
+                overlaying = "y",
+                side = "right",
+                title = paste0(target_var, "/", expo_var)
+              ),
+              margin=list(b=120, l=50, r=100)
+            ) %>%
+            plotly::config(collaborate = F, editable=F, showLink=F, sendData=F, displaylogo=T)
+
+
+          # data_sum<- data_raw %>% dplyr::group_by_(.dots = group_var) %>%
+          #   dplyr::summarise_at(.cols = c(target_var,expo_var), .funs = dplyr::funs(sum(., na.rm=T))) %>%
+          #   dplyr::mutate_(ratio=paste0(target_var, "/", expo_var))
+          #
+          # plotly::plot_ly(data_sum, x=formula(paste0("~", group_var)) , y=formula(paste0("~", expo_var)), type="bar", color=I("gray"), alpha = 0.5, name=expo_var) %>%
+          #   plotly::add_trace(data_sum, x=formula(paste0("~", group_var)) , y=~ratio, yaxis="y2", type="scatter", mode="lines+markers", color=I("navy"), name="ratio", alpha=1) %>%
+          #   plotly::layout(
+          #     xaxis=list(
+          #       title = group_var
+          #     ),
+          #     yaxis=list(
+          #       title = paste0(target_var, "/", expo_var)
+          #     ),
+          #     yaxis2=list(
+          #       overlaying = "y",
+          #       side = "right",
+          #       title = "ratio"
+          #     ),
+          #     margin=list(b=120)
+          #   ) %>%
+          #   plotly::config(collaborate = F, editable=F, showLink=F, sendData=F, displaylogo=T)
+
         } else plotly::plotly_empty(type="scatter", mode="lines")
       })
 
@@ -118,11 +176,4 @@ aggregate_stats <- function() {
   shiny::runGadget(ui, server, viewer = viewer)
 }
 
-# httr::set_config(httr::config(ssl_verifypeer = 0L))
-# devtools::install_github("ropensci/plotly")
-
-require(dplyr)
-require(plotly)
-require(RVisuals)
-lala<- datasets::iris
-aggregate_stats()
+# aggregate_stats()
