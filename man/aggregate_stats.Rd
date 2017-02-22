@@ -9,4 +9,3 @@ aggregate_stats()
 \description{
 RStudio Addin for Visualising Summarised Data Frame
 }
-
