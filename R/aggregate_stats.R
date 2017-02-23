@@ -20,9 +20,23 @@ aggregate_stats <- function() {
       shiny::numericInput("num_bins", label = "Bins #", value = 10, min = 1, max = 128, step = 1),
       border = "bottom"),
 
-    shiny::fillRow(
-      plotly::plotlyOutput("plot")
-    )
+    miniTabstripPanel(
+      miniTabPanel("Graph", icon = icon("area-chart"),
+                   miniContentPanel(
+                     shiny::fillCol(flex = c(5,4,1),
+                                    plotly::plotlyOutput("plot")
+                     )
+                   )
+      ),
+      miniTabPanel("Table", icon = icon("table"),
+                   miniContentPanel(
+                     shiny::fillCol(flex = c(5,4,1),
+                                    DT::dataTableOutput("data_DT")
+                     )
+                   )
+      )
+    ),
+    shiny::verbatimTextOutput("NA_warning", placeholder = T)
   )
 
   server <- function(input, output, session) {
@@ -95,30 +109,63 @@ aggregate_stats <- function() {
         group_var<- num_vars[1]
       }
 
+      ### Create new variables to perform calculation on
+      data_raw<- data_raw %>%
+        mutate_(.target=formula(paste0("~",target_var)),
+                .compare=formula(paste0("~",compare_var)),
+                .weight=formula(paste0("~",weight_var)),
+                .group=formula(paste0("~",group_var)))
+
+      ### Identify NA values
+      target_NA_count<- sum(is.na(data_raw$.target))
+      compare_NA_count<- sum(is.na(data_raw$.compare))
+      weight_NA_count<- sum(is.na(data_raw$.weight))
+      group_NA_count<- sum(is.na(data_raw$.group))
+
+      row_count_ori<- nrow(data_raw)
+
+      ### Filter out the NAs
+      data_raw<- data_raw %>% filter(!is.na(.target),
+                                     !is.na(.compare),
+                                     !is.na(.weight),
+                                     !is.na(.group))
+
+      row_count_filter<- nrow(data_raw)
+
+      ### Display warning message is NAs are removed
+      output$NA_warning<- shiny::renderText({
+        if (!row_count_ori==row_count_filter){
+          paste0(row_count_ori-row_count_filter, " obs removed because of NA\n",
+                 target_var, ": ", target_NA_count, " ",
+                 compare_var, ": ", compare_NA_count, " ",
+                 weight_var, ": ", weight_NA_count, " ",
+                 group_var, ": ", group_NA_count, " ")
+        } else NULL
+      })
+
+
+      #### bin numeric variable
+      if (group_var %in% num_vars & !is.na(num_bins) & !all(data_raw$.group[1]==data_raw$.group)){
+        data_raw$.group<- cut(data_raw$.group, breaks = sort(unique(quantile(data_raw$.group, probs = 0:num_bins/num_bins))), include.lowest = T)
+      }
+
+      if (length(unique(data_raw$.group))>250){
+        data_raw<- data_raw %>% mutate(.group=paste0(group_var, " has too many levels: ", length(unique(data_raw$.group))))
+      }
+
+      data_sum<- data_raw %>%
+        dplyr::group_by_(.dots = ".group") %>%
+        dplyr::summarise_at(.cols = c(".target", ".compare", ".weight"), .funs = dplyr::funs(sum(as.numeric(.), na.rm=T))) %>%
+        dplyr::mutate(ratio_target=.target/.weight,
+                      ratio_compare=.compare/.weight)
+
+      output$data_DT<- DT::renderDataTable({
+        DT::datatable(data_sum, class = "compact", filter = "none", style = "bootstrap")
+      })
 
       output$plot<- plotly::renderPlotly({
         if (!is.null(group_var) & !group_var==""){
 
-          data_raw<- data_raw %>%
-            mutate_(.target=formula(paste0("~",target_var)),
-                    .compare=formula(paste0("~",compare_var)),
-                    .weight=formula(paste0("~",weight_var)),
-                    .group=formula(paste0("~",group_var)))
-
-          #### bin numeric variable
-          if (group_var %in% num_vars & !is.na(num_bins) & !all(data_raw$.group[1]==data_raw$.group)){
-            data_raw$.group<- cut(data_raw$.group, breaks = sort(unique(quantile(data_raw$.group, probs = 0:num_bins/num_bins))), include.lowest = T)
-          }
-
-          if (length(unique(data_raw$.group))>250){
-            data_raw<- data_raw %>% mutate(.group=paste0(group_var, " has too many levels: ", length(unique(data_raw$.group))))
-          }
-
-          data_sum<- data_raw %>%
-            dplyr::group_by_(.dots = ".group") %>%
-            dplyr::summarise_at(.cols = c(".target", ".compare", ".weight"), .funs = dplyr::funs(sum(as.numeric(.), na.rm=T))) %>%
-            dplyr::mutate(ratio_target=.target/.weight,
-                          ratio_compare=.compare/.weight)
 
           plotly::plot_ly(data_sum, x=~.group , y=~.weight, type="bar", color=I("darkgray"), alpha = 0.5, name="Weight") %>%
             plotly::add_trace(data_sum, x=~.group , y=~ratio_compare, yaxis="y2", type="scatter", mode="lines+markers", color=I("red"), name="Compare", alpha=1) %>%
@@ -133,7 +180,7 @@ aggregate_stats <- function() {
               yaxis2=list(
                 overlaying = "y",
                 side = "right",
-                title = paste0(target_var, "/", weight_var)
+                title = paste0(target_var)
               ),
               margin=list(b=120, l=50, r=100)
             ) %>%
@@ -151,11 +198,15 @@ aggregate_stats <- function() {
     })
   }
 
-  viewer <- shiny::dialogViewer(dialogName = "Explorer", width=900, height=1200)
+  viewer <- shiny::dialogViewer(dialogName = "Explorer", width=1200, height=1200)
   #viewer <- shiny::browserViewer()
   #viewer <- shiny::paneViewer(minHeight = 300)
 
   shiny::runGadget(ui, server, viewer = viewer)
 }
 
-#aggregate_stats()
+# require(miniUI)
+# require(plotly)
+# test<- datasets::iris
+# test[5,1]<- NA
+# aggregate_stats()
