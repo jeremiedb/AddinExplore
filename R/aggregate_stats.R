@@ -23,16 +23,12 @@ aggregate_stats <- function() {
     miniTabstripPanel(
       miniTabPanel("Graph", icon = icon("area-chart"),
                    miniContentPanel(
-                     shiny::fillCol(flex = c(5,4,1),
-                                    plotly::plotlyOutput("plot")
-                     )
+                     plotly::plotlyOutput("plot")
                    )
       ),
       miniTabPanel("Table", icon = icon("table"),
                    miniContentPanel(
-                     shiny::fillCol(flex = c(5,4,1),
-                                    DT::dataTableOutput("data_DT")
-                     )
+                     DT::dataTableOutput("data_DT")
                    )
       )
     ),
