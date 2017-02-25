@@ -42,6 +42,7 @@ aggregate_stats <- function() {
       if (!data_select=="") {
         raw_data<- get(data_select, envir = .GlobalEnv)
       } else raw_data<- data.frame(xx=1:5, yy=1:5, zz=1:5)
+      names(raw_data)<- make.names(names(raw_data), unique = T)
       vars<-names(raw_data)
       var_types<-sapply(raw_data, class)
       list(data=raw_data, vars=vars, var_types=var_types)
