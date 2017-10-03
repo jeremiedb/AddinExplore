@@ -24,7 +24,7 @@ aggregate_stats <- function() {
       shiny::selectInput("targets_var", label = "Targets", choices = "", selected = "", multiple = T, selectize = T),
       shiny::selectInput("weight_var", label = "Weight", choices = "", multiple = F),
       shiny::selectInput("group_var", label = "Group", choices = "", multiple = F),
-      shiny::numericInput("num_bins", label = "Bins #", value = 10, min = 1, max = 256, step = 1),
+      shiny::numericInput("num_bins", label = "Bins #", value = 10, min = 1, max = 250, step = 1),
       border = "bottom"),
 
     miniTabstripPanel(
@@ -36,7 +36,8 @@ aggregate_stats <- function() {
                    miniContentPanel(
                      DT::dataTableOutput("table", height = "100%")
                    ))
-    )
+    ),
+    shiny::verbatimTextOutput("NA_warning", placeholder = T)
   )
 
   server <- function(input, output, session) {
@@ -46,6 +47,7 @@ aggregate_stats <- function() {
       if (!data_select=="") {
         raw_data <- get(data_select, envir = .GlobalEnv)
       } else raw_data <- data.frame(xx=1:5, yy=1:5, zz=1:5)
+      names(raw_data)<- make.names(names(raw_data), unique = T)
       vars <- names(raw_data)
       var_types <- sapply(raw_data, class)
       list(data=raw_data, vars=vars, var_types=var_types)
@@ -64,12 +66,10 @@ aggregate_stats <- function() {
     ### Generate plot
     observe({
 
-      data_select <- input$list_data
       targets_var <- input$targets_var
       weight_var <- input$weight_var
       group_var <- input$group_var
-      num_bins <- input$num_bins
-
+      num_bins <- pmin(input$num_bins, 250)
       var_types <- data_input()$var_types
       num_vars <- names(var_types)[var_types %in% c("numeric", "integer")]
 
@@ -104,9 +104,32 @@ aggregate_stats <- function() {
 
       data_raw[, c(".group", ".weight")] <- data_raw[, c(group_var, weight_var)]
 
+      ### Identify NA values
+      group_NA_count <- sum(is.na(data_raw$.group))
+      weight_NA_count <- sum(is.na(data_raw$.weight))
+      row_count_ori <- nrow(data_raw)
+
+      ### Filter out the NAs
+      data_raw<- data_raw %>% filter(!is.na(.weight),
+                                     !is.na(.group))
+
+      row_count_filter<- nrow(data_raw)
+
+      ### Display warning message is NAs are removed
+      output$NA_warning<- shiny::renderText({
+        if (!row_count_ori==row_count_filter){
+          paste0(row_count_ori-row_count_filter, " obs removed because of NA\n",
+                 weight_var, ": ", weight_NA_count, " ",
+                 group_var, ": ", group_NA_count, " ")
+        } else NULL
+      })
+
+
       ### bin numeric variable
-      if (group_var %in% num_vars & !is.na(num_bins) & !all(data_raw$.group[1]==data_raw$.group)){
-        data_raw$.group <- cut(data_raw$.group, breaks = sort(unique(quantile(data_raw$.group, probs = 0:num_bins/num_bins))), include.lowest = T)
+      if (group_var %in% num_vars & is.na(num_bins) & length(unique(data_raw$.group))>250){
+        data_raw$.group<- cut(data_raw$.group, breaks = sort(unique(quantile(data_raw$.group, probs = 0:250/250))), include.lowest = T)
+      } else if (group_var %in% num_vars & !is.na(num_bins) & !all(data_raw$.group[1]==data_raw$.group)){
+        data_raw$.group<- cut(data_raw$.group, breaks = sort(unique(quantile(data_raw$.group, probs = 0:num_bins/num_bins))), include.lowest = T)
       }
 
       # Exposure approach
@@ -124,7 +147,7 @@ aggregate_stats <- function() {
                         lengthChange = T,
                         searching = F,
                         ordering = F,
-                        info = F
+                        info = T
                       ))
       })
 
@@ -164,11 +187,10 @@ aggregate_stats <- function() {
     })
   }
 
-  viewer <- shiny::browserViewer()
-  # viewer <- shiny::dialogViewer(dialogName = "Explorer", width=900, height=1200)
+  # viewer <- shiny::dialogViewer(dialogName = "Explorer", width=1200, height=1200)
   # viewer <- shiny::paneViewer(minHeight = 300)
 
+  viewer <- shiny::browserViewer()
   shiny::runGadget(ui, server, viewer = viewer)
 }
 
-# aggregate_stats()
